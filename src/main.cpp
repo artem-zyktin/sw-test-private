@@ -15,6 +15,8 @@
 #include <fstream>
 #include <iostream>
 
+#include <Features.hpp>
+
 int main(int argc, char** argv)
 {
 	using namespace sw;
@@ -30,53 +32,33 @@ int main(int argc, char** argv)
 		throw std::runtime_error("Error: File not found - " + std::string(argv[1]));
 	}
 
-	// Code for example...
+	auto configRegistry = std::make_unique<UnitConfigRegistry>(std::make_unique<core::UnitFactory>());
+	configRegistry->Register(HunterConfiguration{}, "Hunter");
+	configRegistry->Register(SwordsmanConfiguration{}, "Swordsman");
+
+	auto eventLog = std::make_shared<EventLog>();
+
+	auto game = Game(std::move(configRegistry), eventLog);
 
 	std::cout << "Commands:\n";
 	io::CommandParser parser;
-	parser.add<io::CreateMap>([](auto command) { printDebug(std::cout, command); })
-		.add<io::SpawnSwordsman>([](auto command) { printDebug(std::cout, command); })
-		.add<io::SpawnHunter>([](auto command) { printDebug(std::cout, command); })
-		.add<io::March>([](auto command) { printDebug(std::cout, command); });
+	parser.add<io::CreateMap>([&game](auto command) mutable { game.CreateMap(command.width, command.height); })
+		.add<io::SpawnSwordsman>([&game](auto command) mutable { game.SpawnUnit("Swordsman", command.unitId, DataPack{ core::Position{int(command.x), int(command.y)},
+																													   HealthData{int(command.hp), int(command.hp)},
+																													   ActionControllerData{},
+																													   MovementData{1},
+																													   MeleeAttackData{int(command.strength)}}); })
+		.add<io::SpawnHunter>([&game](auto command) mutable { game.SpawnUnit("Hunter", command.unitId, DataPack{ core::Position{int(command.x), int(command.y)},
+																												 HealthData{int(command.hp), int(command.hp)},
+																												 ActionControllerData{},
+																												 MovementData{1},
+																												 MeleeAttackData{int(command.strength)},
+																												 ShootingAttackData{int(command.agility), 2, int(command.range)} }); })
+		.add<io::March>([&game](auto command) mutable { game.StartMarch(command.unitId, core::Position{ int(command.targetX), int(command.targetY) }); });
 
 	parser.parse(file);
 
-	std::cout << "\n\nEvents:\n";
-
-	EventLog eventLog;
-
-	eventLog.log(1, io::MapCreated{10, 10});
-	eventLog.log(1, io::UnitSpawned{1, "Swordsman", 0, 0});
-	eventLog.log(1, io::UnitSpawned{2, "Hunter", 9, 0});
-	eventLog.log(1, io::MarchStarted{1, 0, 0, 9, 0});
-	eventLog.log(1, io::MarchStarted{2, 9, 0, 0, 0});
-	eventLog.log(1, io::UnitSpawned{3, "Swordsman", 0, 9});
-	eventLog.log(1, io::MarchStarted{3, 0, 9, 0, 0});
-
-	eventLog.log(2, io::UnitMoved{1, 1, 0});
-	eventLog.log(2, io::UnitMoved{2, 8, 0});
-	eventLog.log(2, io::UnitMoved{3, 0, 8});
-
-	eventLog.log(3, io::UnitMoved{1, 2, 0});
-	eventLog.log(3, io::UnitMoved{2, 7, 0});
-	eventLog.log(3, io::UnitMoved{3, 0, 7});
-
-	eventLog.log(4, io::UnitMoved{1, 3, 0});
-	eventLog.log(4, io::UnitAttacked{2, 1, 5, 0});
-	eventLog.log(4, io::UnitDied{1});
-	eventLog.log(4, io::UnitMoved{3, 0, 6});
-
-	eventLog.log(5, io::UnitMoved{2, 6, 0});
-	eventLog.log(5, io::UnitMoved{3, 0, 5});
-
-	eventLog.log(6, io::UnitMoved{2, 5, 0});
-	eventLog.log(6, io::UnitMoved{3, 0, 4});
-
-	eventLog.log(7, io::UnitAttacked{2, 3, 5, 5});
-	eventLog.log(7, io::UnitMoved{3, 0, 3});
-
-	eventLog.log(8, io::UnitAttacked{2, 3, 5, 0});
-	eventLog.log(8, io::UnitDied{3});
+	game.Run();
 
 	return 0;
 }
