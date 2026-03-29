@@ -2,3 +2,4 @@
 
 #include "Units/HunterConfiguration.hpp"
 #include "Units/SwordsmenConfiguration.hpp"
+#include "Units/UnitConfigRegistry.hpp"
